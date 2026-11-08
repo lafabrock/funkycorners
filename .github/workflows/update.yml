@@ -1,0 +1,29 @@
+name: Update archive
+
+on:
+  schedule:
+    - cron: '0 13 * * 5'   # Friday 13:00 UTC, after the 5:15am ET upload
+    - cron: '0 13 * * 0'   # Sunday catch-up (late tracklists)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests
+      - name: Rebuild data/shows.json from Mixcloud
+        run: python3 tools/update_data.py
+      - name: Commit updated data (if changed)
+        run: |
+          git config user.name "crate-bot"
+          git config user.email "actions@github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "chore: update archive $(date -u +%F) [skip ci]"
+          git push
