@@ -86,6 +86,23 @@ def guests(desc):
     return clean(m.group(1))[:120] if m else ''
 
 
+NOT_MUSIC = re.compile(r'^(psa|psa ?/ ?talk|talk ?/ ?psa|public service announcement|safe harbou?r\b.*)$', re.I)
+TALK_OVER = re.compile(r'^\((?:psa|talk)[^)]*\)\s*', re.I)
+
+
+def tidy(tracks):
+    """PSAs and safe harbor disclaimers become segments (kept in the tracklist,
+    left out of the stats); "(PSA/Talk Over) Artist" keeps the real artist."""
+    for t in tracks:
+        if t[0] != 'track':
+            continue
+        if NOT_MUSIC.match(t[1].strip()) or (not t[1].strip() and NOT_MUSIC.match(t[2].strip())):
+            t[0], t[1], t[2] = 'segment', '', 'PSA' if t[1].strip().lower().startswith(('psa', 'talk', 'public')) else 'Safe Harbor Disclaimer'
+        elif TALK_OVER.match(t[1]):
+            t[1] = TALK_OVER.sub('', t[1]).strip()
+    return tracks
+
+
 def build(d, secs):
     name = re.sub(r'\s+', ' ', clean(d['name']))
     minutes = round(d['audio_length'] / 60) if d.get('audio_length') else None
@@ -129,6 +146,8 @@ def main():
         for s in ex.map(detail, todo):
             fresh[s['key']] = s
     shows = [fresh.get(o['key']) or old[o['key']] for o in items]
+    for s in shows:
+        tidy(s['tracks'])
     shows.sort(key=lambda s: (s['date'], s['number'] or 0, s['name']))
     for i, s in enumerate(shows):
         s['id'] = i + 1
